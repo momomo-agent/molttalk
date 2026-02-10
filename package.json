@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Cross-OpenClaw communication service",
   "scripts": {
+    "start": "node server.js",
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
