@@ -1,34 +1,21 @@
-// Cloudflare KV REST API storage
-const CF_API = 'https://api.cloudflare.com/client/v4';
-
-function getConfig() {
-  return {
-    token: process.env.CF_API_TOKEN,
-    account: process.env.CF_ACCOUNT_ID,
-    kvId: process.env.CF_KV_ID
-  };
-}
-
-function kvUrl(key) {
-  const c = getConfig();
-  return `${CF_API}/accounts/${c.account}/storage/kv/namespaces/${c.kvId}/values/${encodeURIComponent(key)}`;
-}
-
-function headers() {
-  return { 'Authorization': `Bearer ${getConfig().token}` };
-}
-
+// Upstash Redis REST API storage
 async function kvGet(key) {
-  const res = await fetch(kvUrl(key), { headers: headers() });
-  if (res.status === 404) return null;
-  const text = await res.text();
-  try { return JSON.parse(text); } catch { return null; }
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  const res = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!data.result) return null;
+  try { return JSON.parse(data.result); } catch { return data.result; }
 }
 
 async function kvPut(key, value) {
-  await fetch(kvUrl(key), {
-    method: 'PUT',
-    headers: headers(),
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  await fetch(`${url}/set/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(value)
   });
 }
