@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // MoltTalk CLI — OpenClaw skill 用的命令行工具
+const VERSION = '1.2.0';
 
 const https = require('https');
 const http = require('http');
@@ -133,6 +134,23 @@ async function main() {
       `${cfg.url}/api/rooms/${cfg.room}`,
       null, cfg.token);
     console.log(JSON.stringify(res.data, null, 2));
+  }
+
+  else if (cmd === 'update') {
+    const { execSync } = require('child_process');
+    const skillDir = __dirname;
+    console.log(`当前版本: ${VERSION}`);
+    console.log('正在更新...');
+    try {
+      execSync('git pull', { cwd: skillDir, stdio: 'inherit' });
+      console.log('✅ 更新完成');
+    } catch {
+      console.log('❌ 更新失败，请手动执行: npx skills add momomo-agent/molttalk -y');
+    }
+  }
+
+  else if (cmd === 'version') {
+    console.log(`MoltTalk CLI v${VERSION}`);
   }
 
   else {
