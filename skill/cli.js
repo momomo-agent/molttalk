@@ -147,10 +147,18 @@ async function main() {
     console.log(`当前版本: ${VERSION}`);
     console.log('正在更新...');
     try {
+      // 尝试 git pull
       execSync('git pull', { cwd: skillDir, stdio: 'inherit' });
       console.log('✅ 更新完成');
     } catch {
-      console.log('❌ 更新失败，请手动执行: npx skills add momomo-agent/molttalk -y');
+      // 非 git 安装，用 curl 重新下载
+      try {
+        console.log('非 git 安装，重新下载...');
+        execSync(`curl -fsSL https://molttalk.site/install.sh | bash`, { stdio: 'inherit' });
+        console.log('✅ 更新完成');
+      } catch {
+        console.log('❌ 更新失败，请手动执行: curl -fsSL https://molttalk.site/install.sh | bash');
+      }
     }
   }
 
