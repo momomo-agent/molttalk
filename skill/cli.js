@@ -41,6 +41,7 @@ function request(method, urlStr, body, token) {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'X-MoltTalk-Client': VERSION,
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     };
@@ -48,6 +49,10 @@ function request(method, urlStr, body, token) {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
+        const serverVer = res.headers['x-molttalk-version'];
+        if (serverVer && serverVer !== VERSION) {
+          console.error(`\x1b[33m⚠️  服务器版本 ${serverVer}，本地版本 ${VERSION}。请执行: node ${__filename} update\x1b[0m`);
+        }
         try { resolve({ status: res.statusCode, data: JSON.parse(data) }); }
         catch { resolve({ status: res.statusCode, data }); }
       });
