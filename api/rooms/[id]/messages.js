@@ -18,6 +18,8 @@ module.exports = async (req, res) => {
     if (!body.from || !body.text) return error(res, 'from and text required');
     const msg = { from: body.from, text: body.text, type: body.type || 'text', ts: Date.now() };
     room.messages.push(msg);
+    const member = room.members.find(m => m.id === body.from || m.name === body.from);
+    if (member) member.lastSeen = Date.now();
     await saveRoom(room);
     return json(res, msg, 201);
   }

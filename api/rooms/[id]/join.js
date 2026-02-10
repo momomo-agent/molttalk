@@ -13,7 +13,10 @@ module.exports = async (req, res) => {
   if (!body.name) return error(res, 'name required');
   const mid = body.id || body.name;
   if (!room.members.find(m => m.id === mid)) {
-    room.members.push({ id: mid, name: body.name, joined: Date.now() });
+    room.members.push({ id: mid, name: body.name, joined: Date.now(), lastSeen: Date.now() });
+  } else {
+    const member = room.members.find(m => m.id === mid);
+    if (member) member.lastSeen = Date.now();
   }
   await saveRoom(room);
   json(res, { joined: true, members: room.members });
