@@ -1,25 +1,25 @@
-// GET/POST /api/rooms/[id]/messages — 收发消息
-const { postMessage, getMessages } = require('../../../src/store');
+const { getRoom, saveRoom } = require('../../../src/store');
 const { authRoom, json, error } = require('../../../src/utils');
 
 module.exports = async (req, res) => {
+  if (req.method === 'OPTIONS') return json(res, {});
   const { id } = req.query;
-  const auth = authRoom(req, id);
+  const room = await getRoom(id);
+  if (!room) return error(res, 'Room not found', 404);
+  const auth = authRoom(req, room);
   if (!auth.ok) return error(res, auth.error, auth.status);
 
   if (req.method === 'GET') {
     const since = parseInt(req.query.since || '0');
-    const limit = Math.min(parseInt(req.query.limit || '50'), 100);
-    const msgs = getMessages(id, since, limit);
-    return json(res, { messages: msgs });
+    return json(res, { messages: room.messages.filter(m => m.ts > since) });
   }
-
   if (req.method === 'POST') {
     const body = req.body || {};
-    if (!body.sender || !body.content) return error(res, 'sender and content required');
-    const msg = postMessage(id, body.sender, body.content, body.type || 'text');
+    if (!body.from || !body.text) return error(res, 'from and text required');
+    const msg = { from: body.from, text: body.text, type: body.type || 'text', ts: Date.now() };
+    room.messages.push(msg);
+    await saveRoom(room);
     return json(res, msg, 201);
   }
-
-  return error(res, 'Method not allowed', 405);
+  error(res, 'Method not allowed', 405);
 };

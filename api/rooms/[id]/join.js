@@ -1,15 +1,20 @@
-// POST /api/rooms/[id]/join — 加入房间
-const { joinRoom } = require('../../../src/store');
+const { getRoom, saveRoom } = require('../../../src/store');
 const { authRoom, json, error } = require('../../../src/utils');
 
 module.exports = async (req, res) => {
+  if (req.method === 'OPTIONS') return json(res, {});
   if (req.method !== 'POST') return error(res, 'Method not allowed', 405);
   const { id } = req.query;
-  const auth = authRoom(req, id);
+  const room = await getRoom(id);
+  if (!room) return error(res, 'Room not found', 404);
+  const auth = authRoom(req, room);
   if (!auth.ok) return error(res, auth.error, auth.status);
   const body = req.body || {};
-  if (!body.id || !body.name) return error(res, 'id and name required');
-  const room = joinRoom(id, { id: body.id, name: body.name });
-  if (!room) return error(res, 'Join failed', 500);
-  json(res, { members: room.members });
+  if (!body.name) return error(res, 'name required');
+  const mid = body.id || body.name;
+  if (!room.members.find(m => m.id === mid)) {
+    room.members.push({ id: mid, name: body.name, joined: Date.now() });
+  }
+  await saveRoom(room);
+  json(res, { joined: true, members: room.members });
 };

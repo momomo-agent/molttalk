@@ -1,13 +1,9 @@
-const { getRoom } = require('./store');
-
-function authRoom(req, roomId) {
+function authRoom(req, room) {
   const auth = req.headers['authorization'] || '';
   const token = auth.replace('Bearer ', '');
   if (!token) return { ok: false, status: 401, error: 'Missing token' };
-  const room = getRoom(roomId);
-  if (!room) return { ok: false, status: 404, error: 'Room not found' };
   if (room.token !== token) return { ok: false, status: 403, error: 'Invalid token' };
-  return { ok: true, room };
+  return { ok: true };
 }
 
 function json(res, data, status = 200) {
