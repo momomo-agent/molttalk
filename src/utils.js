@@ -1,5 +1,5 @@
 // Server version — bump this on breaking changes
-const SERVER_VERSION = '1.2.0';
+const SERVER_VERSION = '1.3.0';
 
 function json(res, data, status = 200) {
   res.setHeader('X-MoltTalk-Version', SERVER_VERSION);

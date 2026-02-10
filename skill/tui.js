@@ -91,25 +91,48 @@ function printHelp() {
 }
 
 function stopPolling() {
-  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  if (pollInterval) {
+    if (pollInterval.destroy) pollInterval.destroy();
+    else clearInterval(pollInterval);
+    pollInterval = null;
+  }
 }
 
 function startPolling() {
   stopPolling();
   if (!cfg.room || !cfg.token) return;
-  pollInterval = setInterval(async () => {
-    try {
-      const res = await request('GET', `${url}/api/rooms/${cfg.room}/messages?since=${lastTs}`, null, cfg.token);
-      const msgs = (res.messages || []).filter(m => m.from !== cfg.name);
-      if (msgs.length > 0) {
-        process.stdout.write('\r\x1b[K');
-        msgs.forEach(m => printMsg(m));
-        lastTs = msgs[msgs.length - 1].ts;
-        cfg.lastTs = lastTs; saveConfig(cfg);
-        if (rl) rl.prompt();
-      }
-    } catch {}
-  }, 3000);
+  const streamUrl = `${url}/api/rooms/${cfg.room}/stream?since=${lastTs}&token=${cfg.token}`;
+  const mod = streamUrl.startsWith('https') ? https : http;
+
+  const doConnect = () => {
+    const req = mod.get(streamUrl, (res) => {
+      pollInterval = req;
+      let buf = '';
+      res.on('data', (chunk) => {
+        buf += chunk.toString();
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              const msgs = (data.messages || []).filter(m => m.from !== cfg.name);
+              if (msgs.length > 0) {
+                process.stdout.write('\r\x1b[K');
+                msgs.forEach(m => printMsg(m));
+                lastTs = msgs[msgs.length - 1].ts;
+                cfg.lastTs = lastTs; saveConfig(cfg);
+                if (rl) rl.prompt();
+              }
+            } catch {}
+          }
+        }
+      });
+      res.on('end', () => { setTimeout(doConnect, 3000); });
+    });
+    req.on('error', () => { setTimeout(doConnect, 5000); });
+  };
+  doConnect();
 }
 
 async function loadHistory() {
