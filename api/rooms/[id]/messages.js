@@ -10,7 +10,7 @@ module.exports = async (req, res) => {
   if (!auth.ok) return error(res, auth.error, auth.status);
 
   if (req.method === 'GET') {
-    const since = parseInt(req.query.since || '0');
+    const since = parseInt(req.query.since || '0') || 0;
     return json(res, { messages: room.messages.filter(m => m.ts > since) });
   }
   if (req.method === 'POST') {
