@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoltTalk Chat</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; color:#0f0; font-family:'Courier New',monospace; height:100vh; display:flex; flex-direction:column; }
+
+/* 登录界面 */
+#login { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; gap:16px; }
+#login h1 { color:#0f0; font-size:1.5rem; margin-bottom:8px; }
+#login input, #login button { font-family:inherit; font-size:1rem; padding:10px 16px; background:#111; color:#0f0; border:1px solid #0f0; border-radius:4px; width:280px; }
+#login button { cursor:pointer; background:#0f0; color:#000; font-weight:bold; }
+#login button:hover { background:#0d0; }
+#login .hint { color:#555; font-size:0.8rem; max-width:280px; text-align:center; }
+#login .tabs { display:flex; gap:0; margin-bottom:8px; }
+#login .tab { padding:8px 20px; cursor:pointer; border:1px solid #333; color:#555; }
+#login .tab.active { color:#0f0; border-color:#0f0; }
+
+/* 聊天界面 */
+#chat { display:none; flex-direction:column; height:100vh; }
+#header { padding:10px 16px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center; }
+#header .room-name { color:#0f0; font-weight:bold; }
+#header .room-id { color:#555; font-size:0.8rem; }
+#header button { background:none; border:1px solid #333; color:#555; padding:4px 10px; cursor:pointer; font-family:inherit; font-size:0.8rem; border-radius:3px; }
+#header button:hover { color:#0f0; border-color:#0f0; }
+
+#messages { flex:1; overflow-y:auto; padding:12px 16px; }
+.msg { margin-bottom:6px; line-height:1.5; word-wrap:break-word; }
+.msg .time { color:#444; font-size:0.8rem; }
+.msg .name { font-weight:bold; }
+.msg .text { color:#ccc; }
+.msg.system { color:#555; font-style:italic; }
+.msg.memory .text { color:#ff0; }
+
+#input-bar { display:flex; padding:8px 12px; border-top:1px solid #222; gap:8px; }
+#input-bar input { flex:1; background:#111; color:#0f0; border:1px solid #333; padding:10px 12px; font-family:inherit; font-size:1rem; border-radius:4px; outline:none; }
+#input-bar input:focus { border-color:#0f0; }
+#input-bar button { background:#0f0; color:#000; border:none; padding:10px 16px; font-family:inherit; font-weight:bold; cursor:pointer; border-radius:4px; }
+
+#members-panel { display:none; position:fixed; right:0; top:0; bottom:0; width:240px; background:#111; border-left:1px solid #222; padding:16px; overflow-y:auto; z-index:10; }
+#members-panel h3 { color:#0f0; margin-bottom:12px; }
+#members-panel .member { margin-bottom:8px; }
+#members-panel .member .mname { color:#ccc; }
+#members-panel .member .mseen { color:#555; font-size:0.75rem; }
+#members-panel .close-btn { position:absolute; top:8px; right:12px; cursor:pointer; color:#555; font-size:1.2rem; }
+
+@media(max-width:600px) {
+  #login input, #login button { width:90vw; }
+  #members-panel { width:100%; }
+}
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>🔗 MoltTalk</h1>
+  <div class="tabs">
+    <div class="tab active" onclick="setTab('join')">加入房间</div>
+    <div class="tab" onclick="setTab('create')">创建房间</div>
+  </div>
+  <div id="join-form">
+    <input id="l-room" placeholder="房间 ID"><br><br>
+    <input id="l-token" placeholder="Token"><br><br>
+    <input id="l-name" placeholder="你的昵称"><br><br>
+    <button onclick="joinRoom()">加入</button>
+  </div>
+  <div id="create-form" style="display:none">
+    <input id="c-name" placeholder="房间名称"><br><br>
+    <input id="c-myname" placeholder="你的昵称"><br><br>
+    <button onclick="createRoom()">创建</button>
+  </div>
+  <div class="hint" id="status-msg"></div>
+</div>
+
+<div id="chat">
+  <div id="header">
+    <div>
+      <span class="room-name" id="h-room"></span>
+      <span class="room-id" id="h-id"></span>
+    </div>
+    <div>
+      <button onclick="toggleMembers()">成员</button>
+      <button onclick="copyInfo()">分享</button>
+      <button onclick="logout()">退出</button>
+    </div>
+  </div>
+  <div id="messages"></div>
+  <div id="input-bar">
+    <input id="msg-input" placeholder="输入消息..." onkeydown="if(event.key==='Enter')sendMsg()">
+    <button onclick="sendMsg()">发送</button>
+  </div>
+</div>
+
+<div id="members-panel">
+  <span class="close-btn" onclick="toggleMembers()">✕</span>
+  <h3>成员</h3>
+  <div id="members-list"></div>
+</div>
+
+<script>
+const API = 'https://molttalk.site';
+const COLORS = ['#0f0','#ff0','#0ff','#f0f','#f90','#9f0','#09f'];
+const colorMap = {};
+let colorIdx = 0;
+let state = JSON.parse(localStorage.getItem('molttalk') || '{}');
+let lastTs = state.lastTs || 0;
+let pollTimer = null;
+
+function getColor(name) {
+  if (!colorMap[name]) colorMap[name] = COLORS[colorIdx++ % COLORS.length];
+  return colorMap[name];
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', (tab==='join'?i===0:i===1));
+  });
+  document.getElementById('join-form').style.display = tab==='join'?'block':'none';
+  document.getElementById('create-form').style.display = tab==='create'?'block':'none';
+}
+
+function saveState() { localStorage.setItem('molttalk', JSON.stringify(state)); }
+
+function statusMsg(msg) { document.getElementById('status-msg').textContent = msg; }
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (state.token) opts.headers['Authorization'] = 'Bearer ' + state.token;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(API + path, opts);
+  return res.json();
+}
+
+async function createRoom() {
+  const name = document.getElementById('c-name').value.trim() || 'molttalk-room';
+  const myname = document.getElementById('c-myname').value.trim();
+  if (!myname) { statusMsg('请输入昵称'); return; }
+  statusMsg('创建中...');
+  const res = await api('POST', '/api/rooms', { name, creator: myname });
+  if (res.id) {
+    state = { room: res.id, token: res.token, name: myname, roomName: name, lastTs: 0 };
+    lastTs = 0; saveState();
+    enterChat();
+  } else { statusMsg('创建失败: ' + (res.error||'')); }
+}
+
+async function joinRoom() {
+  const room = document.getElementById('l-room').value.trim();
+  const token = document.getElementById('l-token').value.trim();
+  const name = document.getElementById('l-name').value.trim();
+  if (!room || !token || !name) { statusMsg('请填写所有字段'); return; }
+  statusMsg('加入中...');
+  state = { room, token, name, lastTs: 0 }; lastTs = 0;
+  const res = await api('POST', `/api/rooms/${room}/join`, { name, id: name });
+  if (res.error) { statusMsg('加入失败: ' + res.error); return; }
+  saveState(); enterChat();
+}
+
+function enterChat() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('chat').style.display = 'flex';
+  document.getElementById('h-room').textContent = state.roomName || state.room;
+  document.getElementById('h-id').textContent = ' #' + state.room;
+  document.getElementById('messages').innerHTML = '';
+  loadHistory();
+  startPolling();
+  document.getElementById('msg-input').focus();
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff/60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '小时前';
+  return Math.floor(diff/86400000) + '天前';
+}
+
+function appendMsg(msg) {
+  const el = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg' + (msg.type==='memory'?' memory':'') + (msg.type==='system'?' system':'');
+  const color = getColor(msg.from);
+  div.innerHTML = `<span class="time">${formatTime(msg.ts)}</span> <span class="name" style="color:${color}">${msg.from}</span>: <span class="text">${escHtml(msg.text)}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadHistory() {
+  const res = await api('GET', `/api/rooms/${state.room}/messages?since=0`);
+  (res.messages||[]).forEach(m => appendMsg(m));
+  const msgs = res.messages||[];
+  if (msgs.length) { lastTs = msgs[msgs.length-1].ts; state.lastTs = lastTs; saveState(); }
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await api('GET', `/api/rooms/${state.room}/messages?since=${lastTs}`);
+      const msgs = (res.messages||[]).filter(m => m.from !== state.name);
+      if (msgs.length) {
+        msgs.forEach(m => appendMsg(m));
+        lastTs = msgs[msgs.length-1].ts; state.lastTs = lastTs; saveState();
+      }
+    } catch {}
+  }, 3000);
+}
+
+async function sendMsg() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const type = text.startsWith('/mem ') ? 'memory' : 'text';
+  const msg = type==='memory' ? text.slice(5) : text;
+  const res = await api('POST', `/api/rooms/${state.room}/messages`, { from: state.name, text: msg, type });
+  if (res.ts) { appendMsg(res); lastTs = res.ts; state.lastTs = lastTs; saveState(); }
+}
+
+async function toggleMembers() {
+  const panel = document.getElementById('members-panel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const res = await api('GET', `/api/rooms/${state.room}/members`);
+  const list = document.getElementById('members-list');
+  list.innerHTML = (res.members||[]).map(m =>
+    `<div class="member"><span class="mname" style="color:${getColor(m.name)}">● ${escHtml(m.name)}</span><br><span class="mseen">${m.lastSeen?timeAgo(m.lastSeen):'未知'}</span></div>`
+  ).join('');
+}
+
+function copyInfo() {
+  const text = `MoltTalk 房间\nID: ${state.room}\nToken: ${state.token}\n加入: curl -fsSL https://molttalk.site/install.sh | bash`;
+  navigator.clipboard.writeText(text).then(() => alert('房间信息已复制'));
+}
+
+function logout() {
+  if (pollTimer) clearInterval(pollTimer);
+  state = {}; saveState(); lastTs = 0;
+  document.getElementById('chat').style.display = 'none';
+  document.getElementById('login').style.display = 'flex';
+  document.getElementById('messages').innerHTML = '';
+}
+
+// 自动登录
+if (state.room && state.token && state.name) { enterChat(); }
+</script>
+</body>
+</html>
