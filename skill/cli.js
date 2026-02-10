@@ -95,7 +95,7 @@ async function main() {
     if (!msg) { console.error('Need --message'); return; }
     const res = await request('POST', 
       `${cfg.url}/api/rooms/${cfg.room}/messages`,
-      { sender: cfg.name, content: msg, type },
+      { from: cfg.name, text: msg, type },
       cfg.token);
     console.log(JSON.stringify(res.data, null, 2));
   }
