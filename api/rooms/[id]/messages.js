@@ -1,39 +1,25 @@
 // GET/POST /api/rooms/[id]/messages — 收发消息
-import { postMessage, getMessages, getRoom } from '../../../src/store.js';
-import { authRoom, jsonResponse, errorResponse } from '../../../src/utils.js';
+const { postMessage, getMessages } = require('../../../src/store');
+const { authRoom, json, error } = require('../../../src/utils');
 
-export default async function handler(req, { params }) {
-  const roomId = params.id;
-  const auth = await authRoom(req, roomId);
-  if (!auth.ok) return errorResponse(auth.error, auth.status);
+module.exports = async (req, res) => {
+  const { id } = req.query;
+  const auth = authRoom(req, id);
+  if (!auth.ok) return error(res, auth.error, auth.status);
 
   if (req.method === 'GET') {
-    const url = new URL(req.url);
-    const since = parseInt(url.searchParams.get('since') || '0');
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const msgs = await getMessages(roomId, since, Math.min(limit, 100));
-    return jsonResponse({ messages: msgs });
+    const since = parseInt(req.query.since || '0');
+    const limit = Math.min(parseInt(req.query.limit || '50'), 100);
+    const msgs = getMessages(id, since, limit);
+    return json(res, { messages: msgs });
   }
 
   if (req.method === 'POST') {
-    try {
-      const body = await req.json();
-      if (!body.sender || !body.content) {
-        return errorResponse('sender and content required');
-      }
-      const msg = await postMessage(
-        roomId,
-        body.sender,
-        body.content,
-        body.type || 'text'
-      );
-      return jsonResponse(msg, 201);
-    } catch (e) {
-      return errorResponse(e.message, 500);
-    }
+    const body = req.body || {};
+    if (!body.sender || !body.content) return error(res, 'sender and content required');
+    const msg = postMessage(id, body.sender, body.content, body.type || 'text');
+    return json(res, msg, 201);
   }
 
-  return errorResponse('Method not allowed', 405);
-}
-
-export const config = { runtime: 'edge' };
+  return error(res, 'Method not allowed', 405);
+};

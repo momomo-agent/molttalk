@@ -1,81 +1,58 @@
-// Vercel KV 存储层
-// 数据结构：
-// room:{id} -> { id, name, created, members: [] }
-// room:{id}:msgs -> sorted set (score=timestamp, value=JSON message)
-// room:{id}:seq -> 消息序号计数器
+// 内存存储（Node.js Runtime，同实例内共享）
+const crypto = require('crypto');
 
-import { kv } from '@vercel/kv';
-import crypto from 'crypto';
+// 全局变量在同一实例内持久
+if (!global._molttalk) {
+  global._molttalk = { rooms: {}, messages: {}, sequences: {} };
+}
+const store = global._molttalk;
 
-export function generateId() {
+function generateId() {
   return crypto.randomBytes(6).toString('hex');
 }
 
-export function generateToken() {
+function generateToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-export async function createRoom(name) {
+function createRoom(name) {
   const id = generateId();
   const token = generateToken();
-  const room = {
-    id,
-    name: name || `room-${id}`,
-    token,
-    created: Date.now(),
-    members: []
-  };
-  await kv.set(`room:${id}`, JSON.stringify(room));
+  const room = { id, name: name || `room-${id}`, token, created: Date.now(), members: [] };
+  store.rooms[id] = room;
+  store.messages[id] = [];
+  store.sequences[id] = 0;
   return room;
 }
 
-export async function getRoom(id) {
-  const raw = await kv.get(`room:${id}`);
-  if (!raw) return null;
-  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+function getRoom(id) {
+  return store.rooms[id] || null;
 }
 
-export async function joinRoom(roomId, member) {
-  const room = await getRoom(roomId);
+function joinRoom(roomId, member) {
+  const room = store.rooms[roomId];
   if (!room) return null;
-  
-  const exists = room.members.find(m => m.id === member.id);
-  if (!exists) {
-    room.members.push({
-      id: member.id,
-      name: member.name || 'anonymous',
-      joined: Date.now()
-    });
-    await kv.set(`room:${roomId}`, JSON.stringify(room));
+  if (!room.members.find(m => m.id === member.id)) {
+    room.members.push({ id: member.id, name: member.name || 'anonymous', joined: Date.now() });
   }
   return room;
 }
 
-export async function postMessage(roomId, senderId, content, type = 'text') {
-  const seq = await kv.incr(`room:${roomId}:seq`);
-  const msg = {
-    seq,
-    sender: senderId,
-    content,
-    type, // text | memory | system
-    ts: Date.now()
-  };
-  // 用 sorted set，score 是 seq
-  await kv.zadd(`room:${roomId}:msgs`, { score: seq, member: JSON.stringify(msg) });
-  // 只保留最近 500 条
-  const count = await kv.zcard(`room:${roomId}:msgs`);
-  if (count > 500) {
-    await kv.zremrangebyrank(`room:${roomId}:msgs`, 0, count - 501);
+function postMessage(roomId, senderId, content, type = 'text') {
+  const seq = (store.sequences[roomId] || 0) + 1;
+  store.sequences[roomId] = seq;
+  const msg = { seq, sender: senderId, content, type, ts: Date.now() };
+  if (!store.messages[roomId]) store.messages[roomId] = [];
+  store.messages[roomId].push(msg);
+  if (store.messages[roomId].length > 500) {
+    store.messages[roomId] = store.messages[roomId].slice(-500);
   }
   return msg;
 }
 
-export async function getMessages(roomId, since = 0, limit = 50) {
-  const raw = await kv.zrangebyscore(
-    `room:${roomId}:msgs`,
-    since + 1,  // exclusive
-    '+inf',
-    { count: limit, offset: 0 }
-  );
-  return (raw || []).map(item => typeof item === 'string' ? JSON.parse(item) : item);
+function getMessages(roomId, since = 0, limit = 50) {
+  const msgs = store.messages[roomId] || [];
+  return msgs.filter(m => m.seq > since).slice(0, limit);
 }
+
+module.exports = { createRoom, getRoom, joinRoom, postMessage, getMessages };
