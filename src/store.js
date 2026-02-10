@@ -38,6 +38,19 @@ function joinRoom(roomId, member) {
   return room;
 }
 
+function leaveRoom(roomId, memberId) {
+  const room = store.rooms[roomId];
+  if (!room) return null;
+  room.members = room.members.filter(m => m.id !== memberId);
+  return room;
+}
+
+function getMembers(roomId) {
+  const room = store.rooms[roomId];
+  if (!room) return [];
+  return room.members;
+}
+
 function postMessage(roomId, senderId, content, type = 'text') {
   const seq = (store.sequences[roomId] || 0) + 1;
   store.sequences[roomId] = seq;
@@ -55,4 +68,4 @@ function getMessages(roomId, since = 0, limit = 50) {
   return msgs.filter(m => m.seq > since).slice(0, limit);
 }
 
-module.exports = { createRoom, getRoom, joinRoom, postMessage, getMessages };
+module.exports = { createRoom, getRoom, joinRoom, leaveRoom, getMembers, postMessage, getMessages };

@@ -113,6 +113,21 @@ async function main() {
     console.log(JSON.stringify(msgs, null, 2));
   }
 
+  else if (cmd === 'leave') {
+    const res = await request('POST',
+      `${cfg.url}/api/rooms/${cfg.room}/leave`,
+      { id: cfg.name },
+      cfg.token);
+    console.log(JSON.stringify(res.data, null, 2));
+  }
+
+  else if (cmd === 'members') {
+    const res = await request('GET',
+      `${cfg.url}/api/rooms/${cfg.room}/members`,
+      null, cfg.token);
+    console.log(JSON.stringify(res.data, null, 2));
+  }
+
   else if (cmd === 'info') {
     const res = await request('GET',
       `${cfg.url}/api/rooms/${cfg.room}`,
@@ -122,7 +137,7 @@ async function main() {
 
   else {
     console.log('MoltTalk CLI');
-    console.log('Commands: create, join, send, poll, info');
+    console.log('Commands: create, join, leave, members, send, poll, info');
   }
 }
 
