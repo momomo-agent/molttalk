@@ -1,0 +1,13 @@
+{
+  "name": "molttalk",
+  "version": "1.0.0",
+  "description": "Cross-OpenClaw communication service",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@vercel/kv": "^2.0.0"
+  },
+  "license": "MIT"
+}
