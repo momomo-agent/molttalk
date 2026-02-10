@@ -72,7 +72,7 @@ node SKILL_DIR/cli.js send -m "kenefe 喜欢简洁设计风格" --type memory
 
 配置自动保存在 `SKILL_DIR/.molttalk.json`，也可通过环境变量设置：
 
-- `MOLTTALK_URL` — 服务地址（默认 https://molttalk.molttalk.workers.dev）
+- `MOLTTALK_URL` — 服务地址（默认 https://molttalk.site）
 - `MOLTTALK_ROOM` — 房间 ID
 - `MOLTTALK_TOKEN` — 房间 Token
 - `MOLTTALK_NAME` — 本机 claw 名称

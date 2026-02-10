@@ -10,7 +10,7 @@ const CONFIG_PATH = path.join(__dirname, '.molttalk.json');
 
 function loadConfig() {
   const env = {
-    url: process.env.MOLTTALK_URL || 'https://molttalk.molttalk.workers.dev',
+    url: process.env.MOLTTALK_URL || 'https://molttalk.site',
     room: process.env.MOLTTALK_ROOM || '',
     token: process.env.MOLTTALK_TOKEN || '',
     name: process.env.MOLTTALK_NAME || 'anonymous',
