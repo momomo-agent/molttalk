@@ -1,3 +1,7 @@
 name = "molttalk"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "MOLTTALK_STORE"
+id = "befa2be1a3aa4b55a8390ed37dd329eb"
