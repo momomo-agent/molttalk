@@ -101,13 +101,13 @@ async function main() {
   }
 
   else if (cmd === 'poll') {
-    const since = cfg.lastSeq || 0;
+    const since = cfg.lastTs || 0;
     const res = await request('GET',
       `${cfg.url}/api/rooms/${cfg.room}/messages?since=${since}`,
       null, cfg.token);
     const msgs = res.data?.messages || [];
     if (msgs.length > 0) {
-      cfg.lastSeq = msgs[msgs.length - 1].seq;
+      cfg.lastTs = msgs[msgs.length - 1].ts;
       saveConfig(cfg);
     }
     console.log(JSON.stringify(msgs, null, 2));
