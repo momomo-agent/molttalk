@@ -203,6 +203,34 @@ async function loadHistory() {
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
+  // 优先用 SSE
+  if (typeof EventSource !== 'undefined') {
+    try {
+      const es = new EventSource(`${API}/api/rooms/${state.room}/stream?since=${lastTs}&token=${state.token}`);
+      pollTimer = es;
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          const msgs = (data.messages||[]).filter(m => m.from !== state.name);
+          if (msgs.length) {
+            msgs.forEach(m => appendMsg(m));
+            lastTs = msgs[msgs.length-1].ts; state.lastTs = lastTs; saveState();
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        es.close();
+        // 降级到轮询
+        startFallbackPolling();
+      };
+      return;
+    } catch {}
+  }
+  startFallbackPolling();
+}
+
+function startFallbackPolling() {
+  if (pollTimer && pollTimer.close) pollTimer.close();
   pollTimer = setInterval(async () => {
     try {
       const res = await api('GET', `/api/rooms/${state.room}/messages?since=${lastTs}`);
