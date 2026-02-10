@@ -168,45 +168,28 @@ async function main() {
 
   else if (cmd === 'listen') {
     if (!cfg.room || !cfg.token) { console.error('请先 join 房间'); return; }
-    const since = cfg.lastTs || 0;
-    const streamUrl = `${cfg.url}/api/rooms/${cfg.room}/stream?since=${since}&token=${cfg.token}`;
-    console.log(`🔗 SSE 监听中... (${cfg.name}@${cfg.room})`);
+    let lastTs = cfg.lastTs || 0;
+    console.log(`🔗 监听中... (${cfg.name}@${cfg.room}) 每2秒轮询`);
     
-    const mod = streamUrl.startsWith('https') ? https : http;
-    const doConnect = () => {
-      const req = mod.get(streamUrl, (res) => {
-        let buf = '';
-        res.on('data', (chunk) => {
-          buf += chunk.toString();
-          const lines = buf.split('\n');
-          buf = lines.pop();
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                const msgs = data.messages || [];
-                msgs.forEach(m => {
-                  const t = new Date(m.ts);
-                  const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-                  console.log(`[${ts}] ${m.from}: ${m.text}`);
-                  cfg.lastTs = m.ts;
-                });
-                if (msgs.length) saveConfig(cfg);
-              } catch {}
-            }
-          }
+    const doPoll = async () => {
+      try {
+        const res = await request('GET',
+          `${cfg.url}/api/rooms/${cfg.room}/messages?since=${lastTs}`,
+          null, cfg.token);
+        const msgs = (res.data?.messages || []);
+        msgs.forEach(m => {
+          const t = new Date(m.ts);
+          const ts = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+          console.log(`[${ts}] ${m.from}: ${m.text}`);
+          lastTs = m.ts;
         });
-        res.on('end', () => {
-          console.log('连接断开，3秒后重连...');
-          setTimeout(doConnect, 3000);
-        });
-      });
-      req.on('error', () => {
-        console.log('连接失败，5秒后重试...');
-        setTimeout(doConnect, 5000);
-      });
+        if (msgs.length) { cfg.lastTs = lastTs; saveConfig(cfg); }
+      } catch {}
     };
-    doConnect();
+    
+    // 先拉一次，然后每2秒轮询
+    await doPoll();
+    setInterval(doPoll, 2000);
     // 保持进程运行
     process.on('SIGINT', () => { console.log('\n退出监听'); process.exit(0); });
   }
